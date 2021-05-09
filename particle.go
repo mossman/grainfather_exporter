@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/r3labs/sse/v2"
+	"log"
 	"time"
+
+	"github.com/r3labs/sse/v2"
 )
 
 const PARTICLE_EVENT_URL = "https://api.particle.io/v1/devices/events"
@@ -27,16 +29,20 @@ func MonitorParticle(token *GrainfatherParticleToken, res chan ParticleEvent) {
 	}
 	for i := 0; i < 5; i++ {
 		var event ParticleEvent
+		log.Println("Waiting event from subscription")
 		msg := <-events
 		if msg == nil {
+			log.Println("Empty message")
 			continue
 		}
 
 		err = json.Unmarshal(msg.Data[:], &event)
 		if err != nil {
+			log.Println("Unmarshal failed")
 			continue
 		}
 		res <- event
 	}
 	client.Unsubscribe(events)
+	log.Println("Unsubscribed")
 }

@@ -17,17 +17,17 @@ type Context struct {
 }
 
 type AuthCmd struct {
-	Username string `help:"Username" env:"GRAINFATHER_USERNAME"`
-	Password string `help:"Password" env:"GRAINFATHER_PASSWORD"`
+	Username string `required help:"Username" env:"GRAINFATHER_USERNAME"`
+	Password string `required help:"Password" env:"GRAINFATHER_PASSWORD"`
 }
 
 type ParticleCmd struct {
-	Token string `help:"Token" env:"PARTICLE_TOKEN"`
+	Token string `required help:"Token" env:"PARTICLE_TOKEN"`
 }
 
 type PrometheusCmd struct {
 	ListenAddress string `help:"Listen address" default:":9400"`
-	Token         string `help:"Token" env:"PARTICLE_TOKEN"`
+	Token         string `required help:"Token" env:"PARTICLE_TOKEN"`
 }
 
 const (
@@ -73,7 +73,10 @@ func (a *AuthCmd) Run(ctx *Context) error {
 
 func getConicalFermenterTemp(token *GrainfatherParticleToken) (float64, error) {
 	eventchan := make(chan ParticleEvent)
+	log.Print("Starting monitor")
 	go MonitorParticle(token, eventchan)
+
+	log.Print("Waiting event")
 
 	ev := <-eventchan
 	temp, err := ParseConicalFermenterTemp(ev.Data)
@@ -99,8 +102,8 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	e.mutex.Lock()
-	defer e.mutex.Unlock()
+	//	e.mutex.Lock()
+	//	defer e.mutex.Unlock()
 
 	log.Println("Getting temp")
 
