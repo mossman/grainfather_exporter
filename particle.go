@@ -17,6 +17,44 @@ type ParticleEvent struct {
 	CoreID    string    `json:"coreid"`
 }
 
+type ParticleClient struct {
+	client *sse.Client
+}
+
+func NewParticleClient(token *GrainfatherParticleToken) *ParticleClient {
+	var particleUrl = PARTICLE_EVENT_URL + "?access_token=" + token.AccessToken
+	client := sse.NewClient(particleUrl)
+	return &ParticleClient{client: client}
+}
+
+func (c *ParticleClient) Listen(ch chan<- ParticleEvent) {
+	events := make(chan *sse.Event)
+
+	err := c.client.SubscribeChanRaw(events)
+	if err != nil {
+		panic(err)
+	}
+	for {
+		var event ParticleEvent
+		log.Println("Waiting event from subscription")
+		msg := <-events
+		if msg == nil {
+			log.Println("Empty message")
+			continue
+		}
+
+		log.Printf("Msg received %s", &msg.Data)
+
+		err = json.Unmarshal(msg.Data[:], &event)
+		if err != nil {
+			log.Println("Unmarshal failed")
+			continue
+		}
+		log.Printf("Event received %s", &event)
+		ch <- event
+	}
+}
+
 func MonitorParticle(token *GrainfatherParticleToken, res chan ParticleEvent) {
 	var particleUrl = PARTICLE_EVENT_URL + "?access_token=" + token.AccessToken
 
@@ -41,6 +79,7 @@ func MonitorParticle(token *GrainfatherParticleToken, res chan ParticleEvent) {
 			log.Println("Unmarshal failed")
 			continue
 		}
+		log.Printf("Event received %s", &event)
 		res <- event
 	}
 	client.Unsubscribe(events)

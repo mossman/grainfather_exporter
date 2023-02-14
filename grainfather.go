@@ -3,12 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/pkg/errors"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 const GRAINFATHER_AUTH_URL = "https://community.grainfather.com/api/auth/login"
@@ -27,26 +28,9 @@ type GrainfatherTime struct {
 	time.Time
 }
 
-const grainfatherTimeLayout = "2006-01-02 15:04:05"
-
-func (t *GrainfatherTime) UnmarshalJSON(b []byte) error {
-	s := strings.Trim(string(b), "\"")
-	if s == "null" {
-		t.Time = time.Time{}
-		return nil
-	}
-	var err error
-	t.Time, err = time.Parse(grainfatherTimeLayout, s)
-	if err != nil {
-		panic(err)
-	}
-	// you can now parse b as thoroughly as you want
-	return err
-}
-
 type GrainfatherParticleToken struct {
-	AccessToken string          `json:"access_token"`
-	Expires     GrainfatherTime `json:"expires_at"`
+	AccessToken string    `json:"access_token"`
+	Expires     time.Time `json:"expires_at"`
 }
 
 func AuthenticateGrainfather(username string, password string) (*GrainfatherSession, error) {
@@ -117,14 +101,18 @@ func GetParticleToken(session *GrainfatherSession) (*GrainfatherParticleToken, e
 	return nil, errors.New("Unable to get device token")
 }
 
-func ParseConicalFermenterTemp(data string) (float64, error) {
+func ParseConicalFermenterTemp(data string) (float64, float64, error) {
 	parts := strings.Split(data, ",")
-	if len(parts) < 0 {
-		return 0, errors.New("Unable to get temperature")
+	if len(parts) < 2 {
+		return 0, 0, errors.New("Unable to get temperature")
 	}
-	val, err := strconv.ParseFloat(parts[0], 32)
+	temp, err := strconv.ParseFloat(parts[0], 32)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return val, nil
+	target, err := strconv.ParseFloat(parts[1], 32)
+	if err != nil {
+		return 0, 0, err
+	}
+	return temp, target, nil
 }

@@ -38,22 +38,29 @@ type Exporter struct {
 	mutex sync.Mutex
 	token *GrainfatherParticleToken
 
-	up          *prometheus.Desc
 	temperature *prometheus.Desc
+	target      *prometheus.Desc
 }
+
+type GrainFatherStatus struct {
+	temperature float64
+	target      float64
+}
+
+var grainFatherStatus = &GrainFatherStatus{}
 
 func NewExporter(token *GrainfatherParticleToken) *Exporter {
 	return &Exporter{
 		token: token,
-		up: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "up"),
-			"Could fermenter be reached",
+		temperature: prometheus.NewDesc(
+			"temperature",
+			"Fermenter temperature",
 			nil,
 			nil),
-		temperature: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "temperature"),
-			"Fermenter temperature",
-			[]string{"pluginId", "pluginCategory"},
+		target: prometheus.NewDesc(
+			"target",
+			"Fermenter target",
+			nil,
 			nil),
 	}
 }
@@ -79,7 +86,7 @@ func getConicalFermenterTemp(token *GrainfatherParticleToken) (float64, error) {
 	log.Print("Waiting event")
 
 	ev := <-eventchan
-	temp, err := ParseConicalFermenterTemp(ev.Data)
+	temp, _, err := ParseConicalFermenterTemp(ev.Data)
 	if err != nil {
 		return 0, err
 	}
@@ -99,26 +106,22 @@ func (p *ParticleCmd) Run(ctx *Context) error {
 
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.temperature
+	ch <- e.target
 }
 
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	//	e.mutex.Lock()
-	//	defer e.mutex.Unlock()
-
-	log.Println("Getting temp")
-
-	temp, err := getConicalFermenterTemp(e.token)
-	if err != nil {
-		panic(err)
-	}
-
-	ch <- prometheus.MustNewConstMetric(e.temperature, prometheus.GaugeValue, float64(temp), "", "")
+	ch <- prometheus.MustNewConstMetric(e.temperature, prometheus.GaugeValue, float64(grainFatherStatus.temperature))
+	ch <- prometheus.MustNewConstMetric(e.target, prometheus.GaugeValue, float64(grainFatherStatus.target))
 }
 
 func (p *PrometheusCmd) Run(ctx *Context) error {
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
 
 	token := GrainfatherParticleToken{AccessToken: p.Token}
 	exporter := NewExporter(&token)
+
+	particleclient := NewParticleClient(&token)
 
 	prometheus.MustRegister(exporter)
 	prometheus.MustRegister(version.NewCollector("grainfather_exporter"))
@@ -137,10 +140,25 @@ func (p *PrometheusCmd) Run(ctx *Context) error {
 
 	http.Handle("/metrics", promhttp.Handler())
 	log.Printf("grainfather_exporter listening on port %v", p.ListenAddress)
-	if err := http.ListenAndServe(p.ListenAddress, nil); err != nil {
-		log.Fatalf("Error starting HTTP server: %v", err)
-		return err
+	go func() {
+		if err := http.ListenAndServe(p.ListenAddress, nil); err != nil {
+			log.Fatalf("Error starting HTTP server: %v", err)
+			wg.Done()
+		}
+	}()
+	ch := make(chan ParticleEvent)
+	go particleclient.Listen(ch)
+	for ev := range ch {
+		temp, target, err := ParseConicalFermenterTemp(ev.Data)
+		if err != nil {
+			log.Fatalf("Error from particle: %v", err)
+		}
+		log.Printf("Temp: %v Target: %v", temp, target)
+		grainFatherStatus.temperature = temp
+		grainFatherStatus.target = target
 	}
+
+	wg.Wait()
 	return nil
 }
 
