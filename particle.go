@@ -29,6 +29,9 @@ type ParticleDevice struct {
 }
 
 func GetParticleDevices(token *GrainfatherParticleToken) []ParticleDevice {
+	// Thousands of the world’s most innovative companies use Particle to power
+	// their connected machines and sensors and send authentication
+	// tokens in URL query parameters.
 	var particleUrl = PARTICLE_DEVICE_URL + "?access_token=" + token.AccessToken
 
 	client := http.Client{
