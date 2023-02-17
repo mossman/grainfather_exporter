@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/alecthomas/kong"
 
@@ -27,7 +28,8 @@ type ParticleCmd struct {
 
 type PrometheusCmd struct {
 	ListenAddress string `help:"Listen address" default:":9400"`
-	Token         string `required help:"Token" env:"PARTICLE_TOKEN"`
+	Username      string `required help:"Username" env:"GRAINFATHER_USERNAME"`
+	Password      string `required help:"Password" env:"GRAINFATHER_PASSWORD"`
 }
 
 const (
@@ -35,9 +37,6 @@ const (
 )
 
 type Exporter struct {
-	mutex sync.Mutex
-	token *GrainfatherParticleToken
-
 	temperature *prometheus.Desc
 	target      *prometheus.Desc
 }
@@ -49,9 +48,8 @@ type GrainFatherStatus struct {
 
 var grainFatherStatus = &GrainFatherStatus{}
 
-func NewExporter(token *GrainfatherParticleToken) *Exporter {
+func NewExporter() *Exporter {
 	return &Exporter{
-		token: token,
 		temperature: prometheus.NewDesc(
 			"temperature",
 			"Fermenter temperature",
@@ -78,10 +76,24 @@ func (a *AuthCmd) Run(ctx *Context) error {
 	return nil
 }
 
+func RenewParticleToken(Username string, Password string) (*GrainfatherParticleToken, error) {
+	session, err := AuthenticateGrainfather(Username, Password)
+	if err != nil {
+		return nil, err
+	}
+	token, err := GetParticleToken(session)
+	if err != nil {
+		panic(err)
+	}
+	return token, nil
+}
+
 func getConicalFermenterTemp(token *GrainfatherParticleToken) (float64, error) {
+	devices := GetParticleDevices(token)
+
 	eventchan := make(chan ParticleEvent)
 	log.Print("Starting monitor")
-	go MonitorParticle(token, eventchan)
+	go GetEventFromParticle(token, eventchan, &devices[0])
 
 	log.Print("Waiting event")
 
@@ -118,10 +130,13 @@ func (p *PrometheusCmd) Run(ctx *Context) error {
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 
-	token := GrainfatherParticleToken{AccessToken: p.Token}
-	exporter := NewExporter(&token)
+	token, err := RenewParticleToken(p.Username, p.Password)
+	if err != nil {
+		panic(err)
+	}
+	exporter := NewExporter()
 
-	particleclient := NewParticleClient(&token)
+	devices := GetParticleDevices(token)
 
 	prometheus.MustRegister(exporter)
 	prometheus.MustRegister(version.NewCollector("grainfather_exporter"))
@@ -146,16 +161,28 @@ func (p *PrometheusCmd) Run(ctx *Context) error {
 			wg.Done()
 		}
 	}()
-	ch := make(chan ParticleEvent)
-	go particleclient.Listen(ch)
-	for ev := range ch {
-		temp, target, err := ParseConicalFermenterTemp(ev.Data)
+	for {
+		log.Print("Measuring...")
+		if time.Now().After(token.Expires) {
+			token, err = RenewParticleToken(p.Username, p.Password)
+			if err != nil {
+				panic(err)
+			}
+		}
+		StartMonitorActivity(token, devices[0].Id, 2)
+		ch := make(chan ParticleEvent)
+		event, err := GetEventFromParticle(token, ch, &devices[0])
 		if err != nil {
-			log.Fatalf("Error from particle: %v", err)
+			panic(err)
+		}
+		temp, target, err := ParseConicalFermenterTemp(event.Data)
+		if err != nil {
+			log.Printf("Error from particle: %v", err)
 		}
 		log.Printf("Temp: %v Target: %v", temp, target)
 		grainFatherStatus.temperature = temp
 		grainFatherStatus.target = target
+		time.Sleep(1 * time.Minute)
 	}
 
 	wg.Wait()

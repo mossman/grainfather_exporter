@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -98,6 +99,7 @@ func GetParticleToken(session *GrainfatherSession) (*GrainfatherParticleToken, e
 		}
 		return &tokens[0], nil
 	}
+	log.Fatalf("Fail %v", resp)
 	return nil, errors.New("Unable to get device token")
 }
 
