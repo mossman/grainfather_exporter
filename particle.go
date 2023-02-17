@@ -57,7 +57,6 @@ func GetParticleDevices(token *GrainfatherParticleToken) []ParticleDevice {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Print(&devices[0])
 	return devices
 }
 
@@ -93,11 +92,11 @@ func GetEventFromParticle(token *GrainfatherParticleToken, res chan ParticleEven
 	events := make(chan *sse.Event)
 
 	err := client.SubscribeChanRaw(events)
-	defer client.Unsubscribe(events)
-
 	if err != nil {
 		panic(err)
 	}
+	defer client.Unsubscribe(events)
+
 	for i := 0; i < 5; i++ {
 		var event ParticleEvent
 		log.Println("Waiting event from subscription")

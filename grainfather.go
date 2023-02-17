@@ -25,10 +25,6 @@ type GrainfatherSession struct {
 	ApiToken string `json:"api_token"`
 }
 
-type GrainfatherTime struct {
-	time.Time
-}
-
 type GrainfatherParticleToken struct {
 	AccessToken string    `json:"access_token"`
 	Expires     time.Time `json:"expires_at"`
