@@ -29,15 +29,11 @@ type ParticleDevice struct {
 }
 
 func GetParticleDevices(token *GrainfatherParticleToken) []ParticleDevice {
-	// Thousands of the world’s most innovative companies use Particle to power
-	// their connected machines and sensors and send authentication
-	// tokens in URL query parameters.
-	var particleUrl = PARTICLE_DEVICE_URL + "?access_token=" + token.AccessToken
-
 	client := http.Client{
 		Timeout: time.Second * 2, // Timeout after 2 seconds
 	}
-	req, err := http.NewRequest("GET", particleUrl, nil)
+	req, err := http.NewRequest("GET", PARTICLE_DEVICE_URL, nil)
+	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,7 +60,7 @@ func GetParticleDevices(token *GrainfatherParticleToken) []ParticleDevice {
 }
 
 func StartMonitorActivity(token *GrainfatherParticleToken, DeviceID string, duration int) {
-	var particleUrl = PARTICLE_DEVICE_URL + DeviceID + "/highActivity?access_token=" + token.AccessToken
+	var particleUrl = PARTICLE_DEVICE_URL + DeviceID + "/highActivity"
 
 	data := url.Values{}
 	data.Set("args", strconv.Itoa(duration))
@@ -74,6 +70,7 @@ func StartMonitorActivity(token *GrainfatherParticleToken, DeviceID string, dura
 	}
 	req, err := http.NewRequest("POST", particleUrl, strings.NewReader(data.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -89,9 +86,9 @@ func StartMonitorActivity(token *GrainfatherParticleToken, DeviceID string, dura
 }
 
 func GetEventFromParticle(token *GrainfatherParticleToken, res chan ParticleEvent, device *ParticleDevice) (*ParticleEvent, error) {
-	var particleUrl = PARTICLE_DEVICE_URL + "events?access_token=" + token.AccessToken
-
+	var particleUrl = PARTICLE_DEVICE_URL + "events"
 	client := sse.NewClient(particleUrl)
+	client.Headers["Authorization"] = "Bearer " + token.AccessToken
 	events := make(chan *sse.Event)
 
 	err := client.SubscribeChanRaw(events)
