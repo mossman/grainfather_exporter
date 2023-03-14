@@ -16,6 +16,17 @@ import (
 
 const PARTICLE_DEVICE_URL = "https://api.particle.io/v1/devices/"
 
+type Measurement struct {
+	Temperature float64 `json:"temp"`
+	Target      float64 `json:"target"`
+	Heating     bool    `json:"heatStatus"`
+	Cooling     bool    `json:"coolStatus"`
+}
+
+type GrainFatherData struct {
+	Data Measurement `json:"data"`
+}
+
 type ParticleEvent struct {
 	Data      string    `json:"data"`
 	TTL       int       `json:"ttl"`
@@ -85,7 +96,7 @@ func StartMonitorActivity(token *GrainfatherParticleToken, DeviceID string, dura
 	}
 }
 
-func GetEventFromParticle(token *GrainfatherParticleToken, res chan ParticleEvent, device *ParticleDevice) (*ParticleEvent, error) {
+func GetMeasurementFromParticle(token *GrainfatherParticleToken, res chan Measurement, device *ParticleDevice) (*Measurement, error) {
 	var particleUrl = PARTICLE_DEVICE_URL + "events"
 	client := sse.NewClient(particleUrl)
 	client.Headers["Authorization"] = "Bearer " + token.AccessToken
@@ -106,14 +117,22 @@ func GetEventFromParticle(token *GrainfatherParticleToken, res chan ParticleEven
 			continue
 		}
 
+		log.Println(string(msg.Data))
 		err = json.Unmarshal(msg.Data[:], &event)
 		if err != nil {
-			log.Println("Unmarshal failed")
+			log.Printf("Unmarshal failed %v", err)
 			continue
 		}
 		log.Printf("Event received %s", &event)
+		var grainfatherdata GrainFatherData
 		if event.CoreID == device.Id {
-			return &event, nil
+			err = json.Unmarshal([]byte(event.Data), &grainfatherdata)
+			if err != nil {
+				log.Printf("Unmarshal payload failed %v", err)
+				continue
+			}
+
+			return &grainfatherdata.Data, nil
 		}
 	}
 	return nil, errors.New("No event received")

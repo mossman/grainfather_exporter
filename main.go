@@ -88,30 +88,23 @@ func RenewParticleToken(Username string, Password string) (*GrainfatherParticleT
 	return token, nil
 }
 
-func getConicalFermenterTemp(token *GrainfatherParticleToken) (float64, error) {
+func getConicalFermenterTemp(token *GrainfatherParticleToken) float64 {
 	devices := GetParticleDevices(token)
 
-	eventchan := make(chan ParticleEvent)
+	eventchan := make(chan Measurement)
 	log.Print("Starting monitor")
-	go GetEventFromParticle(token, eventchan, &devices[0])
+	go GetMeasurementFromParticle(token, eventchan, &devices[0])
 
 	log.Print("Waiting event")
 
 	ev := <-eventchan
-	temp, _, err := ParseConicalFermenterTemp(ev.Data)
-	if err != nil {
-		return 0, err
-	}
-	return temp, err
+	return ev.Temperature
 }
 
 func (p *ParticleCmd) Run(ctx *Context) error {
 	token := GrainfatherParticleToken{AccessToken: p.Token}
 
-	temp, err := getConicalFermenterTemp(&token)
-	if err != nil {
-		panic(err)
-	}
+	temp := getConicalFermenterTemp(&token)
 	fmt.Println(temp)
 	return nil
 }
@@ -170,12 +163,13 @@ func (p *PrometheusCmd) Run(ctx *Context) error {
 			}
 		}
 		StartMonitorActivity(token, devices[0].Id, 2)
-		ch := make(chan ParticleEvent)
-		event, err := GetEventFromParticle(token, ch, &devices[0])
+		ch := make(chan Measurement)
+		event, err := GetMeasurementFromParticle(token, ch, &devices[0])
 		if err != nil {
 			panic(err)
 		}
-		temp, target, err := ParseConicalFermenterTemp(event.Data)
+		temp := event.Temperature
+		target := event.Target
 		if err != nil {
 			log.Printf("Error from particle: %v", err)
 		}
