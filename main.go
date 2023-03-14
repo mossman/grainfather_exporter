@@ -155,7 +155,7 @@ func (p *PrometheusCmd) Run(ctx *Context) error {
 		}
 	}()
 	for {
-		log.Print("Measuring...")
+		log.Print("Querying...")
 		if time.Now().After(token.Expires) {
 			token, err = RenewParticleToken(p.Username, p.Password)
 			if err != nil {

@@ -123,7 +123,7 @@ func GetMeasurementFromParticle(token *GrainfatherParticleToken, res chan Measur
 			log.Printf("Unmarshal failed %v", err)
 			continue
 		}
-		log.Printf("Event received %s", &event)
+		log.Printf("Event received %v", &event)
 		var grainfatherdata GrainFatherData
 		if event.CoreID == device.Id {
 			err = json.Unmarshal([]byte(event.Data), &grainfatherdata)

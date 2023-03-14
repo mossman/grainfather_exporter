@@ -6,8 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -97,20 +95,4 @@ func GetParticleToken(session *GrainfatherSession) (*GrainfatherParticleToken, e
 	}
 	log.Fatalf("Fail %v", resp)
 	return nil, errors.New("Unable to get device token")
-}
-
-func ParseConicalFermenterTemp(data string) (float64, float64, error) {
-	parts := strings.Split(data, ",")
-	if len(parts) < 2 {
-		return 0, 0, errors.New("Unable to get temperature")
-	}
-	temp, err := strconv.ParseFloat(parts[0], 32)
-	if err != nil {
-		return 0, 0, err
-	}
-	target, err := strconv.ParseFloat(parts[1], 32)
-	if err != nil {
-		return 0, 0, err
-	}
-	return temp, target, nil
 }
